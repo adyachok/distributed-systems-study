@@ -9,6 +9,7 @@ from twisted.internet import fdesc
 from twisted.internet import protocol
 from twisted.internet import reactor
 from twisted.internet.defer import Deferred, DeferredList
+from twisted.internet.task import LoopingCall
 
 import utils
 
@@ -16,15 +17,40 @@ import utils
 #	1. Receive UDP packets on a predefined port
 #	2. Send UDP packets on predefined ports
 #	3. Run own time-consuming logic(inner process)
-#	4. On start of send, receive, inner will update own LC
+#	4. On start of send, receive, inner will update own _LC
 #	   (Local clock) variable.
 
-# Local clock
-LC = 0
 
 METRICS_FILES = {'uptime': '/proc/uptime',
                  'cpu_stat': '/proc/stat'}
 METRICS_FILES_DESC = {}
+
+
+class HostState(object):
+    host_state_stat = {}
+    _LC = 0
+
+    @classmethod
+    def get_ls(cls):
+        return cls._LC
+
+    @classmethod
+    def set_ls(cls):
+        cls._LC += 1
+
+    @classmethod
+    def get_host_state_stat(cls):
+        return cls.host_state_stat
+
+    @classmethod
+    def set_host_state_stat(cls, stat_dict):
+        cls.host_state_stat = stat_dict
+
+    @classmethod
+    def get_whole_stat(cls):
+        data = cls.get_host_state_stat()
+        data['local_time'] = cls.get_ls()
+        return data
 
 
 def make_non_blocking_fdesc(key=None):
@@ -92,6 +118,8 @@ def build_metrics(result):
     data['cpu_info'] = result[1][1]
     data['host'] = platform.node()
     data['timestamp'] = time.time()
+    HostState.set_ls()
+    HostState.set_host_state_stat(data)
     return data
 
 
@@ -107,28 +135,25 @@ def get_metrics(result):
 
 
 class Receiver(protocol.Protocol):
-    def __init__(self, *args, **kwargs):
-        global LC
-        self.lc = LC
 
     def dataReceived(self, data):
-        self.lc += 1
+        HostState.set_ls()
         d = Deferred()
-        d.addCallback(get_metrics)
+        # d.addCallback(get_metrics)
         d.addCallback(self.process_response)
         d.callback(None)
 
     def process_response(self, data):
-        self.lc += 1
-        print self.lc
-        self.transport.write('%s\n' % data)
+        HostState.set_ls()
+        self.transport.write('%s\n' % HostState.get_whole_stat())
 
 
 class EchoFactory(protocol.Factory):
     def buildProtocol(self, addr):
         return Receiver()
 
-
+lc = LoopingCall(get_metrics, None)
+lc.start(2)
 endpoints.serverFromString(reactor, "tcp:21999").listen(EchoFactory())
 reactor.run()
 
