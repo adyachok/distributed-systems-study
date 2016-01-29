@@ -1,32 +1,29 @@
 #!/usr/bin/env python
 
-import os
 import platform
 import time
 
 from twisted.internet import endpoints
-from twisted.internet import fdesc
 from twisted.internet import protocol
 from twisted.internet import reactor
 from twisted.internet.defer import Deferred, DeferredList
 from twisted.internet.task import LoopingCall
 
-import utils
+from metrics.stat import ReportCPUStat
+from metrics.uptime import ReportUptime
+from udp_protocols import NotificationUDPProcessor
+from udp_protocols import MunticastNotificationProcessor
 
-# TODO: Write a daemon process which will do:
-#	1. Receive UDP packets on a predefined port
-#	2. Send UDP packets on predefined ports
-#	3. Run own time-consuming logic(inner process)
-#	4. On start of send, receive, inner will update own _LC
-#	   (Local clock) variable.
+# TODO: create client to notify other processes about changes
+# let assume that if avg CPU usage will be more than 5 will be triggered
+# deferred which will check some random number and if this number will equal for
+# example 5 process will send notification to some randomly selected process
 
-
-METRICS_FILES = {'uptime': '/proc/uptime',
-                 'cpu_stat': '/proc/stat'}
-METRICS_FILES_DESC = {}
-
+PROCESSES = [('localhost', 21998)]
+MULTICAST_GROUP = "228.0.0.5"
 
 class HostState(object):
+    """Class persists host state data"""
     host_state_stat = {}
     _LC = 0
 
@@ -53,65 +50,6 @@ class HostState(object):
         return data
 
 
-def make_non_blocking_fdesc(key=None):
-    # Creates non-blocking file descriptors
-    if not key:
-        for key, file_path in METRICS_FILES.iteritems():
-            if key not in METRICS_FILES_DESC:
-                if os.path.exists(file_path):
-                    desc = open(file_path, 'r')
-                    fdesc.setNonBlocking(desc)
-                    METRICS_FILES_DESC[key] = desc
-    else:
-        file_path = METRICS_FILES.get(key)
-        if file_path and os.path.exists(file_path):
-            desc = open(file_path, 'r')
-            fdesc.setNonBlocking(desc)
-            METRICS_FILES_DESC[key] = desc
-
-
-def close_fdesc(key=None):
-    # Close file descriptors and removes them from the dictionary
-    if not key:
-        for key, fdesc in METRICS_FILES_DESC.iteritems():
-            fdesc.close()
-            del METRICS_FILES_DESC[key]
-    else:
-        fdesc = METRICS_FILES_DESC.get(key)
-        if fdesc:
-            fdesc.close()
-            del METRICS_FILES_DESC[key]
-
-
-def check_fdesc(result, key):
-    # Check return value of reading from non-blocking file descriptor
-    # If error states returned, file descriptor are recreated
-        if result in (fdesc.CONNECTION_DONE, fdesc.CONNECTION_DONE):
-            close_fdesc(key)
-            make_non_blocking_fdesc(key)
-
-
-def get_uptime(*args):
-    d = Deferred()
-    file_obj = METRICS_FILES_DESC['uptime']
-    result = fdesc.readFromFD(file_obj.fileno(), d.callback)
-    file_obj.seek(0)
-    check_fdesc(result, 'uptime')
-    return d
-
-
-def get_cpu_usage(*args):
-    # http://stackoverflow.com/questions/9229333/how-to-get-overall-cpu-usage-e-g-57-on-linux
-    # http://stackoverflow.com/questions/1720816/non-blocking-file-access-with-twisted
-    # output:  cpu37 36524 2 12155 14884885 1037 0 22 0 0 0
-    d = Deferred()
-    file_obj = METRICS_FILES_DESC['cpu_stat']
-    result = fdesc.readFromFD(file_obj.fileno(), d.callback)
-    file_obj.seek(0)
-    check_fdesc(result, 'cpu_stat')
-    return d
-
-
 def build_metrics(result):
     data = {}
     data['uptime'] = result[0][1]
@@ -124,11 +62,8 @@ def build_metrics(result):
 
 
 def get_metrics(result):
-    make_non_blocking_fdesc()
-    uptime_def = get_uptime()
-    uptime_def.addCallback(utils.process_uptime)
-    cpu_def = get_cpu_usage()
-    cpu_def.addCallback(utils.process_cpu_stat)
+    uptime_def = ReportUptime.get_data()
+    cpu_def = ReportCPUStat.get_data()
     def_list = DeferredList([uptime_def, cpu_def], consumeErrors=True)
     def_list.addCallback(build_metrics)
     return def_list
@@ -149,11 +84,28 @@ class Receiver(protocol.Protocol):
 
 
 class EchoFactory(protocol.Factory):
+
     def buildProtocol(self, addr):
         return Receiver()
 
-lc = LoopingCall(get_metrics, None)
-lc.start(2)
-endpoints.serverFromString(reactor, "tcp:21999").listen(EchoFactory())
-reactor.run()
 
+# def check_cpu_load():
+#     data = HostState.get_whole_stat()
+#     avg_load = data['cpu_stat']['cpu']
+#     if avg_load > 5:
+#         host, port = PROCESSES[0]
+#         reactor.connectTCP(host, port, DummyClientFactory())
+
+
+def main():
+    lc = LoopingCall(get_metrics, None)
+    lc.start(2)
+    # reactor.listenUDP(21999, NotificationUDPProcessor())
+    # reactor.listenMulticast(22000, MunticastNotificationProcessor(),
+    #                         listenMultiple=True)
+    endpoints.serverFromString(reactor, "tcp:21999").listen(EchoFactory())
+    reactor.run()
+
+
+if __name__ == "__main__":
+    main()
