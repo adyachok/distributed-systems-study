@@ -1,3 +1,4 @@
+import abc
 import os
 
 from twisted.internet.defer import Deferred
@@ -7,7 +8,8 @@ from twisted.internet.fdesc import setNonBlocking
 
 
 class Report(object):
-    """Abstract class"""
+    __metaclass__ = abc.ABCMeta
+
     FILE_PATH = None
     FILE_OBJ = None
 

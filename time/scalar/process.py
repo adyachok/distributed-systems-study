@@ -3,6 +3,8 @@
 import platform
 import time
 
+from ConfigParser import SafeConfigParser
+
 from twisted.internet import endpoints
 from twisted.internet import protocol
 from twisted.internet import reactor
@@ -11,6 +13,7 @@ from twisted.internet.task import LoopingCall
 
 from metrics.stat import ReportCPUStat
 from metrics.uptime import ReportUptime
+from objects.host import HostState
 from udp_protocols import NotificationUDPProcessor
 from udp_protocols import MunticastNotificationProcessor
 
@@ -19,35 +22,15 @@ from udp_protocols import MunticastNotificationProcessor
 # deferred which will check some random number and if this number will equal for
 # example 5 process will send notification to some randomly selected process
 
-PROCESSES = [('localhost', 21998)]
-MULTICAST_GROUP = "228.0.0.5"
 
-class HostState(object):
-    """Class persists host state data"""
-    host_state_stat = {}
-    _LC = 0
+parser = SafeConfigParser()
+parser.read('config.ini')
+defaults = parser.defaults()
 
-    @classmethod
-    def get_ls(cls):
-        return cls._LC
-
-    @classmethod
-    def set_ls(cls):
-        cls._LC += 1
-
-    @classmethod
-    def get_host_state_stat(cls):
-        return cls.host_state_stat
-
-    @classmethod
-    def set_host_state_stat(cls, stat_dict):
-        cls.host_state_stat = stat_dict
-
-    @classmethod
-    def get_whole_stat(cls):
-        data = cls.get_host_state_stat()
-        data['local_time'] = cls.get_ls()
-        return data
+TCP_PORT = defaults.get('tcp_port')
+UDP_PORT = int(defaults.get('udp_port'))
+MULTICAST_GROUP = defaults.get('multicast_group')
+MULTICAST_PORT = int(defaults.get('multicast_port'))
 
 
 def build_metrics(result):
@@ -100,9 +83,10 @@ class EchoFactory(protocol.Factory):
 def main():
     lc = LoopingCall(get_metrics, None)
     lc.start(2)
-    # reactor.listenUDP(21999, NotificationUDPProcessor())
-    # reactor.listenMulticast(22000, MunticastNotificationProcessor(),
-    #                         listenMultiple=True)
+    reactor.listenUDP(UDP_PORT, NotificationUDPProcessor())
+    reactor.listenMulticast(MULTICAST_PORT,
+                            MunticastNotificationProcessor(MULTICAST_GROUP),
+                            listenMultiple=True)
     endpoints.serverFromString(reactor, "tcp:21999").listen(EchoFactory())
     reactor.run()
 
