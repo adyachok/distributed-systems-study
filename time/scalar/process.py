@@ -2,7 +2,6 @@
 
 import platform
 import time
-
 from ConfigParser import SafeConfigParser
 
 from twisted.internet import endpoints
@@ -14,8 +13,9 @@ from twisted.internet.task import LoopingCall
 from metrics.stat import ReportCPUStat
 from metrics.uptime import ReportUptime
 from objects.host import HostState
-from udp_protocols import NotificationUDPProcessor
-from udp_protocols import MunticastNotificationProcessor
+from utils.receivers import NotificationUDPProcessor
+from utils.receivers import MunticastNotificationProcessor
+
 
 # TODO: create client to notify other processes about changes
 # let assume that if avg CPU usage will be more than 5 will be triggered
