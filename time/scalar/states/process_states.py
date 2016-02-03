@@ -1,4 +1,19 @@
-class Born(object):
+from transitions import State
+
+
+class ProcessState(State):
+    _name = 'process_state'
+
+    def __init__(self):
+        super(ProcessState, self).__init__(self._name)
+
+
+class Prenatal(ProcessState):
+    """Initial process state."""
+    _name = 'prenatal'
+
+
+class Born(ProcessState):
     """State implements startup of a process.
     The process sends a requests after initialisation of functionality.
     The request is send to the multicast group.
@@ -6,37 +21,49 @@ class Born(object):
     the LonelyGrownUp state.
     In the other case process go to the GrownUp state.
     """
-    # TODO: 1. Initiate functionality
-    # TODO: 2. Send info about self 'born' to multicast group
-    # tODO: 3. In case no 'greet' response, continue (N) times
-    # TODO: 3. In case no 'greet' at all go to the LonelyGrownUp
-    # TODO: 4. In other case -> GrownUp
-    pass
+    _name = 'born'
 
 
-class GrownUp(object):
+
+class GrownUp(ProcessState):
     """A leader is found.
     Process report periodically host state to the leader. A leader
     should return heartbeats to own children.
     Process tracks any cluster changes.
     """
-    pass
+    _name = 'grown_up'
 
 
-class LonelyGrownUp(object):
+class LonelyGrownUp(ProcessState):
     """This state assumes that is only one working host.
     This way process doesn't report host state anywhere and
     doesn't send any packets in the network automatically.
     However it still in multicast group so every "born" signal
     will be processed and state will be changed to CrownUp.
     """
-    pass
+    _name = 'lonely_grown_up'
 
 
-class OldBones(object):
+class OldBones(ProcessState):
     """In case to prevent split-brain situation. The process goes to this
     state. After some quantity of retries to find out connection to other
     parts of cluster and if quantity of subcluster > (50% of the cluster +
     1 host), process should stop own host.
     """
-    pass
+    _name = 'old_bones'
+
+# TODO: Perhaps better way is to organize transition code in classes
+# IMHO it will provide better visibility and understanding
+# also more comments can be provided
+transitions = [{'trigger': 'ready',
+                'source': 'prenatal',
+                'dest': 'born'},
+               {'trigger': 'sunrise',
+                'source': 'born',
+                'dest': 'grown_up'},    # TODO: add condition
+               {'trigger': 'sunrise',
+                'source': ['born', 'grown_up'],
+                'dest': 'lonely_grown_up'}, # TODO: add condition
+               {'trigger': 'sundown',
+                'source': ['grown_up', 'lonely_grown_up'],
+                'dest': 'old_bones'}]
