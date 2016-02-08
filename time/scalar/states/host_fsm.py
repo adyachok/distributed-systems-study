@@ -1,4 +1,5 @@
 import os
+import time
 from ConfigParser import SafeConfigParser
 
 from transitions import Machine
@@ -11,6 +12,7 @@ from utils.metrics_processor import get_metrics
 from utils.receivers import NotificationUDPProcessor
 from utils.receivers import MunticastNotificationProcessor
 from utils.receivers import EchoFactory
+from utils.senders import MulticastSenderSimple
 
 
 ROOT_DIR = os.path.abspath(os.path.dirname(os.path.dirname(__file__)))
@@ -33,11 +35,11 @@ class HostFSM(object):
                    {'trigger': 'sunrise',
                     'source': 'born',
                     'dest': 'grown_up',
-                    'conditions': ['is_in_bcast_group']},
+                    'conditions': ['is_in_mcast_group']},
                    {'trigger': 'sunrise',
                     'source': ['born', 'grown_up'],
                     'dest': 'lonely_grown_up',
-                    'unless': ['is_in_bcast_group']},
+                    'unless': ['is_in_mcast_group']},
                    {'trigger': 'sundown',
                     'source': ['grown_up', 'lonely_grown_up'],
                     'dest': 'old_bones'}]
@@ -55,6 +57,8 @@ class HostFSM(object):
         from twisted.internet.defer import Deferred
         d = Deferred()
         d.addCallback(self.ready)
+        d.addCallback(self.get_state)
+        d.addCallback(self.check_mcast_group, msg='born')
         d.addCallback(self.get_state)
         reactor.callLater(.1, d.callback, None)
         reactor.run()
@@ -79,7 +83,7 @@ class HostFSM(object):
         defaults = parser.defaults()
         self.TCP_PORT = defaults.get('tcp_port')
         self.UDP_PORT = int(defaults.get('udp_port'))
-        self.MULTICAST_GROUP = defaults.get('multicast_group')
+        self.MULTICAST_IP = defaults.get('multicast_ip')
         self.MULTICAST_PORT = int(defaults.get('multicast_port'))
 
     def born(self, data):
@@ -88,14 +92,20 @@ class HostFSM(object):
         lc.start(2)
         reactor.listenUDP(self.UDP_PORT, NotificationUDPProcessor())
         reactor.listenMulticast(self.MULTICAST_PORT,
-                                MunticastNotificationProcessor(self.MULTICAST_GROUP),
+                                MunticastNotificationProcessor(self.MULTICAST_IP), # add multicast 'born' processing
                                 listenMultiple=True)
         endpoints.serverFromString(reactor, "tcp:21999").listen(EchoFactory())
 
-    def check_mcast_group(self, data):
-        # TODO: add multicast group check and going to other states
+    def check_mcast_group(self, data, msg=''):
+        for i in xrange(2):
+            if not self.is_in_mcast_group():
+                sender = MulticastSenderSimple(self.MULTICAST_IP,
+                                               self.MULTICAST_PORT)
+                sender.send(msg)
+            else:
+                break
+            time.sleep(1)
         self.sunrise()
-        return
 
     def get_state(self, data):
         print self.state
@@ -103,10 +113,3 @@ class HostFSM(object):
 
 if __name__ == "__main__":
     fsm = HostFSM()
-    # assert fsm.state == 'prenatal'
-    # fsm.ready()
-    # assert fsm.state == 'born'
-    # fsm.sunrise()
-    # assert fsm.state == 'grown_up'
-    # fsm.sundown()
-    # assert fsm.state == 'old_bones'
