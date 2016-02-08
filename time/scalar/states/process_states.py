@@ -67,3 +67,7 @@ transitions = [{'trigger': 'ready',
                {'trigger': 'sundown',
                 'source': ['grown_up', 'lonely_grown_up'],
                 'dest': 'old_bones'}]
+
+
+if __name__ == '__main__':
+    pass
