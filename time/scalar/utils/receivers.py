@@ -2,15 +2,13 @@ from twisted.internet import protocol
 
 
 class NotificationUDPProcessor(protocol.DatagramProtocol):
-
     def datagramReceived(self, datagram, addr):
         # TODO: there should be router, despatched(what to do with notification) logic
         print "Received data: %s from address: %s" % (datagram, addr)
-        #self.transport.write(data, (host, port))
+        # self.transport.write(data, (host, port))
 
 
 class MunticastNotificationProcessor(protocol.DatagramProtocol):
-
     def __init__(self, multicast_group):
         self.multicast_group = multicast_group
 

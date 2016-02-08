@@ -53,7 +53,6 @@ def get_metrics(result):
 
 
 class Receiver(protocol.Protocol):
-
     def dataReceived(self, data):
         HostState.set_ls()
         d = Deferred()
@@ -67,13 +66,12 @@ class Receiver(protocol.Protocol):
 
 
 class EchoFactory(protocol.Factory):
-
     def buildProtocol(self, addr):
         return Receiver()
 
 
 # def check_cpu_load():
-#     data = HostState.get_whole_stat()
+# data = HostState.get_whole_stat()
 #     avg_load = data['cpu_stat']['cpu']
 #     if avg_load > 5:
 #         host, port = PROCESSES[0]

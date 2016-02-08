@@ -3,19 +3,17 @@ from twisted.internet import reactor
 
 
 class UDPsender(protocol.DatagramProtocol):
-
     def __init__(self, data, address, port):
         self.data = data
         self.address = address
         self.port = port
 
     def startProtocol(self):
-        self.transport.write(self.data, (self.address,self.port))
+        self.transport.write(self.data, (self.address, self.port))
         self.transport.loseConnection()
 
 
 class UDPMulticastSender(protocol.DatagramProtocol):
-
     def __init__(self, data, mcast_group):
         self.data = data
         self.mcast_group = mcast_group
@@ -46,4 +44,4 @@ def send_udp_mcast(data, mcast_group):
     """
     # 0 means every port, we don't care
     reactor.listenMulticast(0, UDPMulticastSender(data, mcast_group),
-                                listenMultiple=True)
+                            listenMultiple=True)

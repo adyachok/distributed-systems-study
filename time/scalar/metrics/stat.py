@@ -2,7 +2,6 @@ from report import Report
 
 
 class ReportCPUStat(Report):
-
     FILE_PATH = '/proc/stat'
     FILE_OBJ = None
 

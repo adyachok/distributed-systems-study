@@ -2,7 +2,6 @@ from report import Report
 
 
 class ReportUptime(Report):
-
     FILE_PATH = '/proc/uptime'
     FILE_OBJ = None
 

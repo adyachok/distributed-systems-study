@@ -24,7 +24,6 @@ class Born(ProcessState):
     _name = 'born'
 
 
-
 class GrownUp(ProcessState):
     """A leader is found.
     Process report periodically host state to the leader. A leader
@@ -51,22 +50,6 @@ class OldBones(ProcessState):
     1 host), process should stop own host.
     """
     _name = 'old_bones'
-
-# TODO: Perhaps better way is to organize transition code in classes
-# IMHO it will provide better visibility and understanding
-# also more comments can be provided
-transitions = [{'trigger': 'ready',
-                'source': 'prenatal',
-                'dest': 'born'},
-               {'trigger': 'sunrise',
-                'source': 'born',
-                'dest': 'grown_up'},    # TODO: add condition
-               {'trigger': 'sunrise',
-                'source': ['born', 'grown_up'],
-                'dest': 'lonely_grown_up'}, # TODO: add condition
-               {'trigger': 'sundown',
-                'source': ['grown_up', 'lonely_grown_up'],
-                'dest': 'old_bones'}]
 
 
 if __name__ == '__main__':
